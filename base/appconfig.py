@@ -80,7 +80,15 @@ class Configuration(Serializable):
 			'port': 9999
 		}
 		self.stackdriver_logging = {
-			'name': 'TrafficFlow'
+			'name': 'TrafficFlow',
+			'clear_on_start': False,
+		}
+		self.influxdb = {
+			'host': '127.0.0.1',
+			'port': 8086,
+			'user': 'ipfix',
+			'password': '123456',
+			'dbname': 'netflow'
 		}
 		self.filename = 'ipfix.conversations.txt'
 		self.exporter_networks = {
