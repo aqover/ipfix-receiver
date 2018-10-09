@@ -387,6 +387,7 @@ class StatsConsumer(GenericProcess):
 from handler.elasticsearch import ElasticsearchClient
 from handler.file import FileWriter
 from handler.udpsender import UDPSender
+from handler.stackdriver import StackDriverLogging
 class OutputConsumer(GenericProcess):
 	def __init__(self, queue_director, enabled_handlers, elasticsearch, filename, udpreceiver, stackdriver):
 		self.enabled_handlers = enabled_handlers

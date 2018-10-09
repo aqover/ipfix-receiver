@@ -68,7 +68,7 @@ class Configuration(Serializable):
 			'screen': False,
 			'file': False,
 			'udpreceiver': False,
-			'stackdriver_logging', True,
+			'stackdriver_logging': True,
 		}
 		self.elasticsearch = {
 			'host': '127.0.0.1', 
