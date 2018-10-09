@@ -66,8 +66,9 @@ class Configuration(Serializable):
 		self.enabled_handlers = {
 			'elasticsearch': False, 
 			'screen': False,
-			'file': True,
-			'udpreceiver': False
+			'file': False,
+			'udpreceiver': False,
+			'stackdriver_logging', True,
 		}
 		self.elasticsearch = {
 			'host': '127.0.0.1', 
@@ -78,15 +79,18 @@ class Configuration(Serializable):
 			'host': '127.0.0.1', 
 			'port': 9999
 		}
+		self.stackdriver_logging = {
+			'name': 'TrafficFlow'
+		}
 		self.filename = 'ipfix.conversations.txt'
 		self.exporter_networks = {
-			'192.168.1.107:1002': { 'networks': ['150.10.0.0/16'], 'label': 'Washington' },
+			# '192.168.1.107:1002': { 'networks': ['150.10.0.0/16'], 'label': 'Washington' },
 			'127.0.0.1': { 'networks': ['127.0.0.0/24'], 'label': 'Local' }
 		} 
 		self.networks = [
-			('Washington', ['150.10.0.0/16']),
+			('Renter', ['192.168.1.0/24']),
 			('Localhost', ['127.0.0.0/24']),
-			('Localnet', ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']),
+			('VPN', ['10.0.10.0/24', '10.1.10.0/24']),
 		]
 		self.opensocketcache = {
 			'ttl_response_received': 60,

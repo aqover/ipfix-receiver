@@ -388,7 +388,7 @@ from handler.elasticsearch import ElasticsearchClient
 from handler.file import FileWriter
 from handler.udpsender import UDPSender
 class OutputConsumer(GenericProcess):
-	def __init__(self, queue_director, enabled_handlers, elasticsearch, filename, udpreceiver):
+	def __init__(self, queue_director, enabled_handlers, elasticsearch, filename, udpreceiver, stackdriver):
 		self.enabled_handlers = enabled_handlers
 		if self.enabled_handlers['elasticsearch']:
 			self.es_client = ElasticsearchClient(elasticsearch['host'], elasticsearch['port'], elasticsearch['index'])
@@ -403,6 +403,9 @@ class OutputConsumer(GenericProcess):
 		if self.enabled_handlers['udpreceiver']:
 			self.udpsender = UDPSender(udpreceiver['host'], udpreceiver['port']) 
 			log.info("Output via UDP-Pickle enabled.")
+		if self.enabled_handlers['stackdriver_logging']:
+			self.stackdriver = StackDriverLogging(stackdriver['name'])
+			log.info("Saving to StackDriver Logging enabled.")
 		super(OutputConsumer, self).__init__(queue_director)
 		
 	def handle(self):
@@ -423,6 +426,9 @@ class OutputConsumer(GenericProcess):
 					print(conv)
 			if self.enabled_handlers['udpreceiver']:
 				self.udpsender.send(bulk_data[0])
+			if self.enabled_handlers['stackdriver_logging']:
+				for conv in bulk_data[0]:
+						self.stackdriver.handle(conv)
 					
 
 import os
@@ -480,7 +486,8 @@ class Manager:
 			self.config.enabled_handlers, 
 			self.config.elasticsearch, 
 			self.config.filename,
-			self.config.udpreceiver
+			self.config.udpreceiver,
+			self.config.stackdriver_logging
 		)) # Multiple Workers possible (2?).
 		self.workers.append(BackgroundWorker(self.queue_director, self.config.queues_maxsize))
 
