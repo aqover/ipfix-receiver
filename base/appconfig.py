@@ -91,12 +91,13 @@ class Configuration(Serializable):
 			'dbname': 'netflow'
 		}
 		self.filename = 'ipfix.conversations.txt'
+		self.interfaces = ['ether1', 'ether2', 'ether3', 'ether4', 'ether5', 'B-Renter', 'DGO', 'TOT']
 		self.exporter_networks = {
-			# '192.168.1.107:1002': { 'networks': ['150.10.0.0/16'], 'label': 'Washington' },
+			'10.1.10.3': {'networks': ['10.1.10.0/24'], 'label': 'TOT'},
 			'127.0.0.1': { 'networks': ['127.0.0.0/24'], 'label': 'Local' }
 		} 
 		self.networks = [
-			('Renter', ['192.168.1.0/24']),
+			('B-Renter', ['192.168.1.0/24']),
 			('Localhost', ['127.0.0.0/24']),
 			('VPN', ['10.0.10.0/24', '10.1.10.0/24']),
 		]

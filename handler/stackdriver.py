@@ -7,31 +7,10 @@ import json
 from google.cloud import logging
 from influxdb import InfluxDBClient
 
-from ipfix.information_elements import information_elements
 from base.appconfig import Configuration
 
-import ipaddress
+from datetime import datetime
 
-info_keys = list(information_elements.keys())
-info_values = list(information_elements.values())
-influxdb_tags = ['exporter',
-	"destinationIPv4Address",
-	"destinationMacAddress",
-	'destinationTransportPort',
-	'protocolIdentifier',
-	'sourceIPv4Address',
-	'sourceTransportPort',
-	'postNAPTDestinationTransportPort',
-	'postNAPTSourceTransportPort',
-	'postNATDestinationIPv4Address',
-	'postNATSourceIPv4Address',
-	'postSourceMacAddress']
-influxdb_template = {
-	"measurement": "netflow",
-	"tags": dict(),
-	"time": "",
-	"fields": dict()
-}
 class StackDriverLogging:
 	"""docstring for StackDriverLogging"""
 	def __init__(self, log_name):
@@ -53,49 +32,137 @@ class StackDriverLogging:
 
 	def handle(self, conv):
 		conv = self._makeStringsFromDict(conv)
-		# print (conv)
-		self.save_influxdb(conv)
-		# conv = self._chnageNameToIndex(conv)
-		# Writes the log entry
-		# print (json.dumps(data))
 		self.logger.log_struct(conv)
 
 	def _makeStringsFromDict(self, dictionary):
 		out = dict()
 		for key in dictionary.keys():	# Native Datatypes: No Objects!
 			if isinstance(dictionary[key], dict): # nested...
-				out.update((self._makeStringsFromDict(dictionary[key])))
+				out[key] = self._makeStringsFromDict(dictionary[key])
 			elif not isinstance(dictionary[key], str) and not isinstance(dictionary[key], int) and not isinstance(dictionary[key], float):
 				out[key] = dictionary[key].__str__()
 			else:
 				out[key] = dictionary[key]
 		return out
 
-	def _chnageNameToIndex(self, dictionary):
-		out = dict()
-		for k in dictionary.keys():
-			i = k
-			if k in info_values:
-				i = str(info_keys[info_values.index(k)])
-
-			if isinstance(dictionary[k], dict): # nested...
-				out[i] = self._chnageNameToIndex(dictionary[k])
-			else:
-				out[i] = dictionary[k]
-		return out
-
-
-	def save_influxdb(self, data):
-		point = dict(influxdb_template)
-		point['time'] = data['@timestamp']
-		for k in data:
-			if k in ['@timestamp']: continue
-			if k in influxdb_tags:
-				point['tags'][k] = data[k]
-			else:
-				point['fields'][k] = data[k]
+	def save_one(self, data, doctype):
+		point = {
+			'measurement': 'flows-{}'.format(doctype),
+			'time': datetime.fromtimestamp(float(data['@timestamp'])/1000),
+			'tags': {
+				'exporter': '',
+				# 'sourceIPv6Address': '',
+				# 'destinationIPv6Address': '',
+				'sourceHostname': '',
+				'destinationHostname': '',
+				'destinationTransportPortName': '',
+				'sourceTransportPortName': '',
+				'protocolIdentifierName': '',
+				'networkLocation': '',
+				'securityReason': '',
+			},
+			'fields': data,
+		}
+		for k in point['tags'].keys():
+			point['tags'][k] = data[k]
 
 		self.influx.write_points([point])
 
+	def save_many(self, datas, doctype):
+		points = []
+		for data in datas:
+			data = self._makeStringsFromDict(data)
+			if 'flow_response' in data.keys():
+				flow = {
+					'measurement': 'flows-{}-response'.format(doctype),
+					'time': datetime.fromtimestamp(float(data['@timestamp'])/1000),
+					'tags': {
+						'exporter': data['exporter'],
+						# 'sourceIPv6Address': data['sourceIPv6Address'],
+						# 'destinationIPv6Address': data['destinationIPv6Address'],
+						'sourceHostname': data['sourceHostname'],
+						'destinationHostname': data['destinationHostname'],
+						'destinationTransportPortName': data['destinationTransportPortName'],
+						'sourceTransportPortName': data['sourceTransportPortName'],
+						'protocolIdentifierName': data['protocolIdentifierName'],
+						'networkLocation': data['networkLocation'],
+					},
+					'fields': data['flow_response'],
+				}
+				ponit1 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['ingressInterface'], data['flow_response']['octetDeltaCount'], 0, data['flow_response']['packetDeltaCount'], 0, data['flow_response']['flowDurationMilliseconds'])
+				ponit2 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['egressInterface'], 0, data['flow_response']['octetDeltaCount'], 0, data['flow_response']['packetDeltaCount'], data['flow_response']['flowDurationMilliseconds'])
+				
+				points.append(flow)
+				points.append(ponit1)
+				points.append(ponit2)
+				
+				del data['flow_response']
+
+			if 'flow_request' in data.keys():
+				flow = {
+					'measurement': 'flows-{}-request'.format(doctype),
+					'time': datetime.fromtimestamp(float(data['@timestamp'])/1000),
+					'tags': {
+						'exporter': data['exporter'],
+						# 'sourceIPv6Address': data['sourceIPv6Address'],
+						# 'destinationIPv6Address': data['destinationIPv6Address'],
+						'sourceHostname': data['sourceHostname'],
+						'destinationHostname': data['destinationHostname'],
+						'destinationTransportPortName': data['destinationTransportPortName'],
+						'sourceTransportPortName': data['sourceTransportPortName'],
+						'protocolIdentifierName': data['protocolIdentifierName'],
+						'networkLocation': data['networkLocation'],
+					},
+					'fields': data['flow_request'],
+				}
+				ponit1 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['ingressInterface'], data['flow_request']['octetDeltaCount'], 0, data['flow_request']['packetDeltaCount'], 0, data['flow_request']['flowDurationMilliseconds'])
+				ponit2 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['egressInterface'], 0, data['flow_request']['octetDeltaCount'], 0, data['flow_request']['packetDeltaCount'], data['flow_request']['flowDurationMilliseconds'])
+				
+				points.append(flow)
+				points.append(ponit1)
+				points.append(ponit2)
+				
+				del data['flow_request']
+
+			point = {
+				'measurement': 'flows-{}'.format(doctype),
+				'time': datetime.fromtimestamp(float(data['@timestamp'])/1000),
+				'tags': {
+					'exporter': data['exporter'],
+					# 'sourceIPv6Address': data['sourceIPv6Address'],
+					# 'destinationIPv6Address': data['destinationIPv6Address'],
+					'sourceHostname': data['sourceHostname'],
+					'destinationHostname': data['destinationHostname'],
+					'destinationTransportPortName': data['destinationTransportPortName'],
+					'sourceTransportPortName': data['sourceTransportPortName'],
+					'protocolIdentifierName': data['protocolIdentifierName'],
+					'networkLocation': data['networkLocation'],
+				},
+				'fields': data,
+			}
+			points.append(point)
+
+		self.influx.write_points(points)
+
+	def _make_interface_stats(self, timestamp, exporter, interface, in_byte, out_byte, in_pkt, out_pkt, duration):
+		point = {
+			'measurement': 'interface',
+			'time': datetime.fromtimestamp(float(timestamp)/1000),
+			'tags': {
+				'exporter': exporter,
+				'interface': interface,
+			},
+			'fields': {
+				'in_byte': in_byte,
+				'out_byte': out_byte,
+				'in_packet': in_pkt,
+				'out_packet': out_pkt,
+				'duration': duration,
+			}
+		}
+		return point
+
 	def clear(self):
 		self.logger.delete()
+
+

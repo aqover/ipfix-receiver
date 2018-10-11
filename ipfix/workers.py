@@ -417,6 +417,11 @@ class OutputConsumer(GenericProcess):
 		if self.enabled_handlers['elasticsearch']:
 			self.es_client.saveMany(bulk_data[0], bulk_data[1])
 			log.debug("Writeout %i %s(s) to elasticsearch." % (len(bulk_data[0]), bulk_data[1]))
+		
+		if self.enabled_handlers['stackdriver_logging']:
+			self.stackdriver.save_many(bulk_data[0], bulk_data[1])
+			log.debug("Writeout %i %s(s) to influxdb." % (len(bulk_data[0]), bulk_data[1]))
+
 		if bulk_data[1] != 'stats':
 			if self.enabled_handlers['file']:
 				for conv in bulk_data[0]:
@@ -429,7 +434,7 @@ class OutputConsumer(GenericProcess):
 				self.udpsender.send(bulk_data[0])
 			if self.enabled_handlers['stackdriver_logging']:
 				for conv in bulk_data[0]:
-						self.stackdriver.handle(conv)
+					self.stackdriver.handle(conv)
 					
 
 import os
