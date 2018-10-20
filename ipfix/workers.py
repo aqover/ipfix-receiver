@@ -54,7 +54,7 @@ class QueueDirector:
 	def __init__(self, flow_log_interval = 10):
 		self.queues = dict()
 		self.queues[QueueEnum.Start] = { 'queues': [], 'successor': [ QueueEnum.Flow ] }
-		self.queues[QueueEnum.Flow] = { 'queues': [ Queue() ], 'successor': [ QueueEnum.Corrector ] }
+		self.queues[QueueEnum.Flow] = { 'queues': [ Queue() ], 'successor': [ QueueEnum.Output ] }
 		self.queues[QueueEnum.Corrector] = { 'queues': [ Queue() ], 'successor': [ QueueEnum.Conversation ] }
 		self.queues[QueueEnum.Conversation] = { 'queues': [ Queue() ], 'successor': [ QueueEnum.Security ] }
 		# Stats temporary disabled
@@ -418,9 +418,9 @@ class OutputConsumer(GenericProcess):
 			self.es_client.saveMany(bulk_data[0], bulk_data[1])
 			log.debug("Writeout %i %s(s) to elasticsearch." % (len(bulk_data[0]), bulk_data[1]))
 		
-		if self.enabled_handlers['stackdriver_logging']:
-			self.stackdriver.save_many(bulk_data[0], bulk_data[1])
-			log.debug("Writeout %i %s(s) to influxdb." % (len(bulk_data[0]), bulk_data[1]))
+		# if self.enabled_handlers['stackdriver_logging']:
+		# 	self.stackdriver.save_many(bulk_data[0], bulk_data[1])
+		# 	log.debug("Writeout %i %s(s) to influxdb." % (len(bulk_data[0]), bulk_data[1]))
 
 		if bulk_data[1] != 'stats':
 			if self.enabled_handlers['file']:
@@ -473,21 +473,21 @@ class Manager:
 	def start(self):
 		# TODO: Evtl zuerst Prozesse initialisieren, dann Queue, Config laden, dann Prozesse starten (enable) --> Performance
 		self.workers.append(FlowConsumer(self.queue_director)) # One Worker (Each Process needs each own IPFIX-Template!! Some Procs may never receive Templates!!!)
-		for i in range(0, self.config.corrector_consumer_threads):
-			self.workers.append(CorrectorConsumer(self.queue_director, self.config.ipfix_extreme_network_patch, self.config.conversation_consumer_threads))
+		# for i in range(0, self.config.corrector_consumer_threads):
+		# 	self.workers.append(CorrectorConsumer(self.queue_director, self.config.ipfix_extreme_network_patch, self.config.conversation_consumer_threads))
 		
-		for i in range(0, self.config.conversation_consumer_threads):
-			self.workers.append(ConversationConsumer(self.queue_director, i, 
-				self.config.opensocketcache['ttl_no_response'],
-				self.config.opensocketcache['ttl_response_received']
-			))
+		# for i in range(0, self.config.conversation_consumer_threads):
+		# 	self.workers.append(ConversationConsumer(self.queue_director, i, 
+		# 		self.config.opensocketcache['ttl_no_response'],
+		# 		self.config.opensocketcache['ttl_response_received']
+		# 	))
 		
-		self.workers.append(PostprocessingConsumer(self.queue_director, self.dnscache))  # Multiple Workers (gemeinsames dict)
-		self.workers.append(PostprocessingConsumer(self.queue_director, self.dnscache))
-		self.workers.append(SecurityConsumer(self.queue_director, self.config.security_sample_percentage))
-		self.workers.append(StatsConsumer(self.queue_director, 
-			self.config.ipfix_cache_seconds
-		))  # One Worker (because stateful: Timebased-Counter-Aggregator)
+		# self.workers.append(PostprocessingConsumer(self.queue_director, self.dnscache))  # Multiple Workers (gemeinsames dict)
+		# self.workers.append(PostprocessingConsumer(self.queue_director, self.dnscache))
+		# self.workers.append(SecurityConsumer(self.queue_director, self.config.security_sample_percentage))
+		# self.workers.append(StatsConsumer(self.queue_director, 
+		# 	self.config.ipfix_cache_seconds
+		# ))  # One Worker (because stateful: Timebased-Counter-Aggregator)
 		self.workers.append(OutputConsumer(self.queue_director, 
 			self.config.enabled_handlers, 
 			self.config.elasticsearch, 

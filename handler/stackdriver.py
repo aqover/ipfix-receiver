@@ -28,11 +28,43 @@ class StackDriverLogging:
 		if self.config.stackdriver_logging['clear_on_start']:
 			self.clear()
 
-		self.influx = InfluxDBClient(self.config.influxdb['host'], self.config.influxdb['port'], self.config.influxdb['user'], self.config.influxdb['password'], self.config.influxdb['dbname'])
-
 	def handle(self, conv):
+		def getTCPFlag(flags):
+			text = ''
+			text += 'FIN,' if flags & 0x0001 else ''
+			text += 'SYN,' if flags & 0x0002 else ''
+			text += 'RST,' if flags & 0x0004 else ''
+			text += 'PSH,' if flags & 0x0008 else ''
+			text += 'ACK,' if flags & 0x0010 else ''
+			text += 'URG,' if flags & 0x0020 else ''
+			text += 'ECE,' if flags & 0x0040 else ''
+			text += 'CWR,' if flags & 0x0080 else ''
+			text += 'NS,' if flags & 0x0100 else ''
+			return text[:-1]
+
 		conv = self._makeStringsFromDict(conv)
-		self.logger.log_struct(conv)
+		# self.logger.log_struct(conv)
+
+		# interface, protocol, mac, ip:port , nat, len
+		log = "{}, exporter: {}, in:{}, out:{}, proto:{}".format(datetime.fromtimestamp(float(conv['@timestamp'])/1000), conv['exporter'], conv['ingressInterface'], conv['egressInterface'], conv['protocolIdentifier'])
+
+		if conv['protocolIdentifier'] == '6':
+			log += '(TCP {})'.format(getTCPFlag(conv['tcpControlBits']))
+		elif conv['protocolIdentifier'] == '17':
+			log ++ '(UDP)'
+		log += ", "
+
+		src_mac = conv['sourceMacAddress'] if 'sourceMacAddress' in conv.keys() else conv['postSourceMacAddress']
+		if src_mac != "00:00:00:00:00:00":
+			log += "src-mac: {}, ".format(src_mac)
+
+		src = "{}:{}".format(conv['sourceIPv4Address'], conv['sourceTransportPort'])
+		dst = "{}:{}".format(conv['destinationIPv4Address'], conv['destinationTransportPort'])
+		nat_src = "{}:{}".format(conv['postNATSourceIPv4Address'], conv['postNAPTSourceTransportPort'])
+		nat_dst = "{}:{}".format(conv['postNATDestinationIPv4Address'], conv['postNAPTDestinationTransportPort'])
+
+		log += "{}->{}, NAT {}->{}, ".format(src, dst, nat_src, nat_dst)
+		log += "len: " += conv['length']
 
 	def _makeStringsFromDict(self, dictionary):
 		out = dict()
@@ -44,29 +76,6 @@ class StackDriverLogging:
 			else:
 				out[key] = dictionary[key]
 		return out
-
-	def save_one(self, data, doctype):
-		point = {
-			'measurement': 'flows-{}'.format(doctype),
-			'time': datetime.fromtimestamp(float(data['@timestamp'])/1000),
-			'tags': {
-				'exporter': '',
-				# 'sourceIPv6Address': '',
-				# 'destinationIPv6Address': '',
-				'sourceHostname': '',
-				'destinationHostname': '',
-				'destinationTransportPortName': '',
-				'sourceTransportPortName': '',
-				'protocolIdentifierName': '',
-				'networkLocation': '',
-				'securityReason': '',
-			},
-			'fields': data,
-		}
-		for k in point['tags'].keys():
-			point['tags'][k] = data[k]
-
-		self.influx.write_points([point])
 
 	def save_many(self, datas, doctype):
 		points = []
@@ -117,11 +126,11 @@ class StackDriverLogging:
 				}
 				ponit1 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['ingressInterface'], data['flow_request']['octetDeltaCount'], 0, data['flow_request']['packetDeltaCount'], 0, data['flow_request']['flowDurationMilliseconds'])
 				ponit2 = self._make_interface_stats(data['@timestamp'], data['exporter'], data['egressInterface'], 0, data['flow_request']['octetDeltaCount'], 0, data['flow_request']['packetDeltaCount'], data['flow_request']['flowDurationMilliseconds'])
-				
+
 				points.append(flow)
 				points.append(ponit1)
 				points.append(ponit2)
-				
+
 				del data['flow_request']
 
 			point = {
@@ -141,8 +150,9 @@ class StackDriverLogging:
 				'fields': data,
 			}
 			points.append(point)
-
-		self.influx.write_points(points)
+		influx = InfluxDBClient(self.config.influxdb['host'], self.config.influxdb['port'], self.config.influxdb['user'], self.config.influxdb['password'], self.config.influxdb['dbname'])
+		influx.write_points(points)
+		influx.close()
 
 	def _make_interface_stats(self, timestamp, exporter, interface, in_byte, out_byte, in_pkt, out_pkt, duration):
 		point = {
