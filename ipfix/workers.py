@@ -131,7 +131,7 @@ class GenericProcess(Process):
 			except NoTemplateException:
 				pass
 			except Exception as e:
-				log.error(e)
+				log.error(str(self._name) + str(e))
 
 
 from ipfix.errors import NoTemplateException
@@ -412,7 +412,11 @@ class OutputConsumer(GenericProcess):
 	def handle(self):
 		log.debug('%s consuming.' %(self._name))
 		bulk_data = self.queue_director.getFlow(QueueEnum.Output)
-	
+
+		if not isinstance(bulk_data, tuple):
+			if self.enabled_handlers['stackdriver_logging']: 
+				self.stackdriver.handle(bulk_data)
+			return
 
 		if self.enabled_handlers['elasticsearch']:
 			self.es_client.saveMany(bulk_data[0], bulk_data[1])

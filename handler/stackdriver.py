@@ -46,12 +46,12 @@ class StackDriverLogging:
 		# self.logger.log_struct(conv)
 
 		# interface, protocol, mac, ip:port , nat, len
-		log = "{}, exporter: {}, in:{}, out:{}, proto:{}".format(datetime.fromtimestamp(float(conv['@timestamp'])/1000), conv['exporter'], conv['ingressInterface'], conv['egressInterface'], conv['protocolIdentifier'])
+		log = "{}, exporter: {}, in:{}, out:{}, proto:{}".format(datetime.fromtimestamp(float(conv['timestamp'])), conv['exporter'], conv['ingressInterface'], conv['egressInterface'], conv['protocolIdentifier'])
 
-		if conv['protocolIdentifier'] == '6':
+		if conv['protocolIdentifier'] == 6:
 			log += '(TCP {})'.format(getTCPFlag(conv['tcpControlBits']))
-		elif conv['protocolIdentifier'] == '17':
-			log ++ '(UDP)'
+		elif conv['protocolIdentifier'] == 17:
+			log += '(UDP)'
 		log += ", "
 
 		src_mac = conv['sourceMacAddress'] if 'sourceMacAddress' in conv.keys() else conv['postSourceMacAddress']
@@ -64,7 +64,9 @@ class StackDriverLogging:
 		nat_dst = "{}:{}".format(conv['postNATDestinationIPv4Address'], conv['postNAPTDestinationTransportPort'])
 
 		log += "{}->{}, NAT {}->{}, ".format(src, dst, nat_src, nat_dst)
-		log += "len: " += conv['length']
+		log += "len: " + str(conv['length'])
+
+		self.logger.log_text(log)
 
 	def _makeStringsFromDict(self, dictionary):
 		out = dict()
